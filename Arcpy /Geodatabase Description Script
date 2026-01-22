@@ -1,0 +1,51 @@
+# ------------------------------------------------------------
+# ArcPy Geodatabase Description Script
+# ------------------------------------------------------------
+# This script uses ArcPy to explore and describe a GIS data
+# element (such as a file geodatabase or feature class).
+#
+# It utilizes arcpy.da.Describe() to extract metadata about
+# the data, including properties like name, data type,
+# workspace information, and other descriptive attributes.
+#
+# The script loops through the returned metadata dictionary
+# and prints each property and its value in a readable format.
+#
+# Additional commented sections demonstrate how to use the
+# traditional arcpy.Describe() method to further inspect
+# child datasets, geometry types, spatial extents, and fields.
+#
+# This script is useful for data exploration, validation,
+# and learning how ArcPy represents GIS data programmatically.
+# ------------------------------------------------------------
+
+import arcpy
+
+# dataElement = r"C:\Arcpy\LPA\Data\Sample.gdb\NaturalEarth"
+dataElement = r"C:\Arcpy\LPA\Data\Sample.gdb"
+#dataElement = r"C:\Arcpy\LPA\Data\Sample.gdb\countires"
+descDictionary = arcpy.da.Describe(dataElement)
+#print(descDictionary)
+for i,key in enumerate(descDictionary):
+    print("{0}.{1}:{2}".format(i+1,key,descDictionary[key]))
+##desc = arcpy.Describe(dataElement)
+##print("Describing {0}...".format(dataElement))
+##print("Name:        " + desc.name)
+##print("DataType:    " + desc.dataType)
+##print("CatalogPath: " + desc.catalogPath)
+##print("Children:")
+##for child in desc.children:
+##    if child.dataType == "FeatureDataset":
+##        pass
+##    else:
+##        if hasattr(child,"shapeType"):
+##            print("  {0} is a {1} of shapeType {2}".format(
+##            child.name, child.dataType, child.shapeType))
+##            print("    with Extent: {0}".format(child.extent))
+##        else:
+##            print("  {0} is a {1}".format(child.name,child.dataType))
+##        print("    and Fields:")
+##        for field in child.fields:
+##            print("      {0} of type {1}".format(field.name,field.type))
+
+print("\nScript completed!")
