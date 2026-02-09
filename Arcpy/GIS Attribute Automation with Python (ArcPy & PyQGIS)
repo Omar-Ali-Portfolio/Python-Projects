@@ -173,6 +173,8 @@ else:
         'Processing',
         level=Qgis.Info
     )
+
+
 Summary
 
 Together, these scripts demonstrate practical GIS programming skills, including attribute editing, data summarization, and analytical workflows across both proprietary (ArcGIS Pro) and open-source (QGIS) platforms. The projects reflect real GIS tasks commonly used in data management, analysis, and automation.
