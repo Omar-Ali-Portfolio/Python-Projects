@@ -1,0 +1,178 @@
+ArcPy & GIS Automation Projects
+
+This folder contains Python scripts developed for GIS automation using ArcPy (ArcGIS Pro) and PyQGIS (QGIS). The scripts focus on reading, updating, and analyzing attribute data programmatically, which are common tasks in real-world GIS workflows.
+
+Each section below explains the purpose of the script, followed by the full source code used to complete the task.
+
+
+Script 1: Classifying Road Features with UpdateCursor (ArcPy)
+
+This script classifies road features based on their type by adding a new field and updating its values using an UpdateCursor. Roads labeled as Major Highway are marked "YES", while all other road types are marked "NO". The script also reports how many features fall into each category.
+
+What this demonstrates
+
+Accessing layers from the active ArcGIS Pro map
+
+Adding fields to a feature class
+
+Writing attribute values using UpdateCursor
+
+Applying conditional logic to spatial data
+
+Tracking and reporting results
+
+
+
+import arcpy
+
+path1 = r'C:\\Users\\Omar\\5223\\Python Data\\world_data1'
+arcpy.env.workspace = path1
+
+shapefile_name = 'ne_10m_roads.shp'
+
+map_obj = arcpy.mp.ArcGISProject('Current').activeMap
+
+layer = None
+for lyr in map_obj.listLayers():
+    if lyr.name == 'ne_10m_roads':
+        layer = lyr
+        break
+
+new_field_name = 'Is_Major'
+existing_field = 'type'
+
+arcpy.AddField_management(layer, new_field_name, 'TEXT')
+
+yes_count = 0
+no_count = 0
+
+with arcpy.da.UpdateCursor(layer, [existing_field, new_field_name]) as cursor:
+    for row in cursor:
+        if row[0] == 'Major Highway':
+            row[1] = 'YES'
+            yes_count += 1
+        else:
+            row[1] = 'NO'
+            no_count += 1
+        cursor.updateRow(row)
+
+print(f"YES: {yes_count}")
+print(f"NO: {no_count}")
+print(f"Total: {yes_count + no_count}")
+
+
+
+Script 2: Population Table Summary Using SearchCursor (ArcPy)
+
+This script reads population data from a DBF table and calculates the total population, average population per record, and the number of rows. The script uses a SearchCursor, meaning no data is modified.
+
+What this demonstrates
+
+Working with non-spatial tables in ArcGIS Pro
+
+Using SearchCursor for read-only access
+
+Performing basic statistical summaries
+
+Integrating tabular data into GIS workflows
+
+
+
+import arcpy
+
+path1 = r'C:\\Users\\Omar\\5223\\Python Data\\libraries_data_sources'
+arcpy.env.workspace = path1
+
+table_name = 'population.dbf'
+
+map_obj = arcpy.mp.ArcGISProject('Current').activeMap
+map_obj.addDataFromPath(path1 + '\\\\' + table_name)
+
+table = None
+for t in map_obj.listTables():
+    if t.name == 'population':
+        table = t
+        break
+
+total_pop = 0
+row_count = 0
+
+with arcpy.da.SearchCursor(table, ['P001001']) as cursor:
+    for row in cursor:
+        total_pop += row[0]
+        row_count += 1
+
+average_pop = total_pop / row_count
+
+print(f"Total population: {total_pop}")
+print(f"Average population: {average_pop}")
+print(f"Number of rows: {row_count}")
+
+
+
+
+Script 3: Attribute Analysis with PyQGIS (QGIS)
+
+This script was written in QGIS using PyQGIS and performs attribute analysis on a polygon layer. It verifies that a field is numeric, calculates the mean value, defines a threshold equal to one-third of the mean, and counts how many features exceed that threshold. Results are logged to the QGIS message log.
+
+What this demonstrates
+
+Working with QGIS layers using Python
+
+Verifying attribute data types
+
+Calculating descriptive statistics
+
+Applying logical thresholds for analysis
+
+Logging analytical results programmatically
+
+
+
+
+layer_name = 'trt00_shp'
+field_name = 'Area'
+
+layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+
+field = None
+for fld in layer.fields():
+    if fld.name() == field_name:
+        field = fld
+        break
+
+if field.typeName() in ['Real', 'Integer', 'Double']:
+    QgsMessageLog.logMessage(
+        f"Field '{field_name}' is numerical (type: {field.typeName()})",
+        'Processing',
+        level=Qgis.Info
+    )
+
+    total = 0
+    count = 0
+
+    for f in layer.getFeatures():
+        total += f[field_name]
+        count += 1
+
+    mean = total / count
+    threshold = mean / 3
+
+    above_count = 0
+    for f in layer.getFeatures():
+        if f[field_name] > threshold:
+            above_count += 1
+
+    QgsMessageLog.logMessage(f"Mean: {mean}", 'Processing', level=Qgis.Info)
+    QgsMessageLog.logMessage(f"Threshold (1/3 of mean): {threshold}", 'Processing', level=Qgis.Info)
+    QgsMessageLog.logMessage(f"Number of features above threshold: {above_count}", 'Processing', level=Qgis.Info)
+    QgsMessageLog.logMessage(f"Total features: {count}", 'Processing', level=Qgis.Info)
+else:
+    QgsMessageLog.logMessage(
+        f"Field '{field_name}' is not numerical (type: {field.typeName()})",
+        'Processing',
+        level=Qgis.Info
+    )
+Summary
+
+Together, these scripts demonstrate practical GIS programming skills, including attribute editing, data summarization, and analytical workflows across both proprietary (ArcGIS Pro) and open-source (QGIS) platforms. The projects reflect real GIS tasks commonly used in data management, analysis, and automation.
