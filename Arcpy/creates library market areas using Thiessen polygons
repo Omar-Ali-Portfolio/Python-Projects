@@ -1,0 +1,270 @@
+# Omar Ali
+# 3/15/26
+# This script creates library market areas using Thiessen polygons,
+# joins census population data, and calculates the percent of the
+# total population served by each library.
+ 
+import os
+from osgeo import ogr
+from typing import Any, Optional
+ 
+from qgis.core import (
+    QgsProcessing,
+    QgsProcessingAlgorithm,
+    QgsProcessingContext,
+    QgsProcessingException,
+    QgsProcessingFeedback,
+    QgsProcessingParameterFeatureSink,
+    QgsProcessingParameterFeatureSource,
+    QgsProcessingParameterField,
+    QgsProcessingUtils,
+    QgsWkbTypes,
+    QgsField,
+    QgsVectorLayer,
+)
+from qgis.PyQt.QtCore import QVariant
+from qgis import processing
+ 
+ 
+class LibraryMarketShare(QgsProcessingAlgorithm):
+ 
+    INPUT_POINT = 'INPUT_POINT'
+    INPUT_NAME_FLD = 'INPUT_NAME_FLD'
+    INPUT_POLYGON = 'INPUT_POLYGON'
+    INPUT_JOIN_FLD = 'INPUT_JOIN_FLD'
+    INPUT_AREA_FLD = 'INPUT_AREA_FLD'
+    INPUT_TABLE = 'INPUT_TABLE'
+    INPUT_TABLE_JOIN_FLD = 'INPUT_TABLE_JOIN_FLD'
+    INPUT_POP_FLD = 'INPUT_POP_FLD'
+    OUTPUT = 'OUTPUT'
+ 
+    defaults = {
+        'INPUT_POINT': r'C:\5223\libraries_data_sources\public_library_shp.shp',
+        'INPUT_NAME_FLD': 'NAME',
+        'INPUT_POLYGON': r'C:\5223\libraries_data_sources\trt00_shp.shp',
+        'INPUT_JOIN_FLD': 'STFID2',
+        'INPUT_AREA_FLD': 'Area',
+        'INPUT_TABLE': r'C:\5223\libraries_data_sources\population.dbf',
+        'INPUT_TABLE_JOIN_FLD': 'GEO_ID',
+        'INPUT_POP_FLD': 'P001001'
+    }
+ 
+    def name(self) -> str:
+        return 'librarymarketshare'
+ 
+    def displayName(self) -> str:
+        return 'Library Market Share'
+ 
+    def group(self) -> str:
+        return 'Example scripts'
+ 
+    def groupId(self) -> str:
+        return 'examplescripts'
+ 
+    def shortHelpString(self) -> str:
+        return 'Calculates market share of public libraries using Thiessen polygons'
+ 
+    def initAlgorithm(self, config: Optional[dict[str, Any]] = None):
+ 
+        self.addParameter(
+            QgsProcessingParameterFeatureSource(
+                self.INPUT_POINT,
+                'Input point layer',
+                [QgsProcessing.SourceType.TypeVectorPoint],
+                defaultValue=self.defaults[self.INPUT_POINT]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterField(
+                self.INPUT_NAME_FLD,
+                'Library name field',
+                parentLayerParameterName=self.INPUT_POINT,
+                type=QgsProcessingParameterField.Any,
+                defaultValue=self.defaults[self.INPUT_NAME_FLD]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterFeatureSource(
+                self.INPUT_POLYGON,
+                'Input polygon layer',
+                [QgsProcessing.SourceType.TypeVectorPolygon],
+                defaultValue=self.defaults[self.INPUT_POLYGON]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterField(
+                self.INPUT_JOIN_FLD,
+                'Polygon join field',
+                parentLayerParameterName=self.INPUT_POLYGON,
+                type=QgsProcessingParameterField.Any,
+                defaultValue=self.defaults[self.INPUT_JOIN_FLD]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterField(
+                self.INPUT_AREA_FLD,
+                'Polygon area field',
+                parentLayerParameterName=self.INPUT_POLYGON,
+                type=QgsProcessingParameterField.Numeric,
+                defaultValue=self.defaults[self.INPUT_AREA_FLD]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterFeatureSource(
+                self.INPUT_TABLE,
+                'Input population table',
+                [QgsProcessing.SourceType.TypeVector],
+                defaultValue=self.defaults[self.INPUT_TABLE]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterField(
+                self.INPUT_TABLE_JOIN_FLD,
+                'Table join field',
+                parentLayerParameterName=self.INPUT_TABLE,
+                type=QgsProcessingParameterField.Any,
+                defaultValue=self.defaults[self.INPUT_TABLE_JOIN_FLD]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterField(
+                self.INPUT_POP_FLD,
+                'Population field',
+                parentLayerParameterName=self.INPUT_TABLE,
+                type=QgsProcessingParameterField.Numeric,
+                defaultValue=self.defaults[self.INPUT_POP_FLD]
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterFeatureSink(
+                self.OUTPUT,
+                'Output layer'
+            )
+        )
+ 
+    def processAlgorithm(
+        self,
+        parameters: dict[str, Any],
+        context: QgsProcessingContext,
+        feedback: QgsProcessingFeedback,
+    ) -> dict[str, Any]:
+ 
+        source_point = self.parameterAsVectorLayer(parameters, self.INPUT_POINT, context)
+        source_polygon = self.parameterAsVectorLayer(parameters, self.INPUT_POLYGON, context)
+        source_table = self.parameterAsLayer(parameters, self.INPUT_TABLE, context)
+ 
+        if source_point is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT_POINT))
+        if source_polygon is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT_POLYGON))
+        if source_table is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT_TABLE))
+ 
+        name_field = self.parameterAsString(parameters, self.INPUT_NAME_FLD, context)
+        feature_join_field = self.parameterAsString(parameters, self.INPUT_JOIN_FLD, context)
+        old_area_field = self.parameterAsString(parameters, self.INPUT_AREA_FLD, context)
+        table_join_fld = self.parameterAsString(parameters, self.INPUT_TABLE_JOIN_FLD, context)
+        population_fld = self.parameterAsString(parameters, self.INPUT_POP_FLD, context)
+ 
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+ 
+        # step 1 - thiessen polygons, grass doesn't support memory so save to shapefile
+        thiessen_output = QgsProcessingUtils.generateTempFilename('thiessen.shp')
+        if os.path.exists(thiessen_output):
+            driver.DeleteDataSource(thiessen_output)
+        thiessen = processing.run('grass:v.voronoi', {
+            'input': source_point,
+            'GRASS_REGION_PARAMETER': source_polygon,
+            'output': thiessen_output
+        }, context=context, feedback=feedback)['output']
+ 
+        # step 2 - intersect tracts with thiessen polygons
+        intersection_output = QgsProcessingUtils.generateTempFilename('intersect.shp')
+        if os.path.exists(intersection_output):
+            driver.DeleteDataSource(intersection_output)
+        intersection = processing.run('qgis:intersection', {
+            'INPUT': thiessen,
+            'OVERLAY': source_polygon,
+            'OUTPUT': intersection_output
+        }, context=context, feedback=feedback)['OUTPUT']
+ 
+        # step 3 - join population table
+        joined_layer = processing.run('qgis:joinattributestable', {
+            'INPUT': intersection,
+            'FIELD': feature_join_field,
+            'INPUT_2': source_table,
+            'FIELD_2': table_join_fld,
+            'FIELDS_TO_COPY': [population_fld],
+            'OUTPUT': 'memory:'
+        }, context=context, feedback=feedback)['OUTPUT']
+ 
+        # step 4 - add area column
+        joined_layer_area = processing.run('qgis:exportaddgeometrycolumns', {
+            'INPUT': joined_layer,
+            'CALC_METHOD': '0',
+            'OUTPUT': 'memory:'
+        }, context=context, feedback=feedback)['OUTPUT']
+        fldname_area = 'area_2'
+ 
+        # step 5 - add PopNew and calc proportional pop
+        fldname_pop = 'PopNew'
+        provider = joined_layer_area.dataProvider()
+        provider.addAttributes([QgsField(fldname_pop, QVariant.Double)])
+        joined_layer_area.updateFields()
+        field_id = provider.fieldNameIndex(fldname_pop)
+ 
+        for f in joined_layer_area.getFeatures():
+            newpop = f[fldname_area] * f[population_fld] / f[old_area_field]
+            provider.changeAttributeValues({f.id(): {field_id: newpop}})
+ 
+        # step 6 - dissolve by NAME, gdal doesn't support memory so save to shapefile
+        dissolve_output = QgsProcessingUtils.generateTempFilename('dissolved.shp')
+        if os.path.exists(dissolve_output):
+            driver.DeleteDataSource(dissolve_output)
+        algout = processing.run('gdal:dissolve', {
+            'INPUT': joined_layer_area,
+            'FIELD': name_field,
+            'COMPUTE_AREA': 'true',
+            'COMPUTE_STATISTICS': 'true',
+            'STATISTICS_ATTRIBUTE': fldname_pop,
+            'GEOMETRY': 'geometry',
+            'OUTPUT': dissolve_output
+        }, context=context, feedback=feedback)
+        layer_dissolved = QgsVectorLayer(algout['OUTPUT'], 'dissolved', 'ogr')
+ 
+        # total pop from the table
+        total_pop = 0
+        for f in source_table.getFeatures():
+            total_pop += f[population_fld]
+ 
+        # step 7 - add Percent field
+        fldname_percent = 'Percent'
+        provider2 = layer_dissolved.dataProvider()
+        provider2.addAttributes([QgsField(fldname_percent, QVariant.Double)])
+        layer_dissolved.updateFields()
+        field_id2 = provider2.fieldNameIndex(fldname_percent)
+ 
+        for f in layer_dissolved.getFeatures():
+            pct = (f['sum'] / total_pop) * 100
+            provider2.changeAttributeValues({f.id(): {field_id2: pct}})
+ 
+        layer_dissolved.updateFields()
+ 
+        (sink, dest_id) = self.parameterAsSink(
+            parameters,
+            self.OUTPUT,
+            context,
+            layer_dissolved.fields(),
+            QgsWkbTypes.Polygon,
+            layer_dissolved.sourceCrs()
+        )
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
+ 
+        for f in layer_dissolved.getFeatures():
+            sink.addFeature(f)
+ 
+        return {self.OUTPUT: dest_id}
+ 
+    def createInstance(self):
+        return self.__class__()
