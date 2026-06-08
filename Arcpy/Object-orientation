@@ -1,0 +1,194 @@
+# Omar Ali
+# Exercises: Object-orientation
+# April 5, 2026
+ 
+ 
+# Question 1
+ 
+class Person:
+    def __init__(self, name, id, unit, title=None):
+        self.name = name
+        self.id = id
+        self.unit = unit
+        self.title = title
+        self.devices = []
+ 
+    def report(self):
+        for d in self.devices:
+            print(d)
+ 
+    def get_device(self, device):
+        self.devices.append(device)
+ 
+    def __str__(self):
+        return f'Name: {self.name} | Unit: {self.unit}'
+ 
+ 
+class Phone:
+    def __init__(self, id, number):
+        self.id = id
+        self.number = number
+        self.year = 1900
+ 
+    def scan(self):
+        print(self.id, self.number)
+ 
+    def call(self, num):
+        print(f'Calling {num}')
+ 
+    def __str__(self):
+        return f'Phone: {self.id} {self.number}'
+ 
+ 
+class Computer:
+    def __init__(self, id, cpu, ram):
+        self.id = id
+        self.cpu = cpu
+        self.ram = ram
+ 
+    def scan(self):
+        print(self.id)
+ 
+    def print(self, doc):
+        print(f'Printing {doc} ...')
+ 
+    def __str__(self):
+        return f'Computer: {self.id}'
+ 
+ 
+me = Person('Actual Fun', 'X1276334', 'Tech', 'Data Analyst')
+phone_1 = Phone('PH1234', '6141234567')
+comp_1 = Computer('C1234', 'M2', 16)
+me.get_device(phone_1)
+me.get_device(comp_1)
+ 
+print(me.devices)
+# [<__main__.Phone object at 0x0000017D966ED7F0>, <__main__.Computer object at 0x0000017D966ED940>]
+# its a list with the phone and computer objects inside
+ 
+ 
+# Question 2
+ 
+del me
+# deletes me, no error
+ 
+# me
+# NameError: name 'me' is not defined
+# me got deleted so it doesnt exist anymore
+ 
+print(phone_1)
+# Phone: PH1234 6141234567
+# phone_1 still works, del only removed me
+ 
+ 
+# Question 3
+ 
+class Device():
+    def __init__(self, id):
+        self.id = id
+ 
+    def scan(self):
+        print(self.id, end='')
+ 
+ 
+class Phone(Device):
+    def __init__(self, id, number):
+        super().__init__(id)
+        self.number = number
+        self.year = 1900
+ 
+    def scan(self):
+        super().scan()
+        print(' ', self.number)
+ 
+    def call(self, num):
+        print(f'Calling {num}')
+ 
+    def __str__(self):
+        return f'Phone: {self.id} {self.number}'
+ 
+ 
+class Computer(Device):
+    def __init__(self, id, cpu, ram):
+        super().__init__(id)
+        self.cpu = cpu
+        self.ram = ram
+ 
+    def print(self, doc):
+        print(f'Printing {doc} ...')
+ 
+    def __str__(self):
+        return f'Computer: {self.id}'
+ 
+ 
+comp_1 = Computer('C1234', 'M2', 16)
+# no output, works fine
+ 
+dv = Device('RandomDevice123456')
+# no output, works fine too
+# but Device isnt abstract so you can make a generic one which shouldnt be allowed
+ 
+ 
+# Question 4
+ 
+from abc import ABC, abstractmethod
+ 
+ 
+class Player(ABC):
+    @abstractmethod
+    def play(self):
+        pass
+ 
+ 
+class Radio(Player):
+    def play(self):
+        print("Playing music from the radio...")
+ 
+ 
+class Tape(Player):
+    def play(self):
+        print("Playing music from the cassette tape...")
+ 
+ 
+class CD(Player):
+    def play(self):
+        print("Playing music from the CD...")
+ 
+ 
+# added bluetooth from page 43
+class Bluetooth(Player):
+    def play(self):
+        print("Playing music via Bluetooth...")
+ 
+ 
+class Boombox:
+    def __init__(self):
+        self.players = {
+            "radio": Radio(),
+            "tape": Tape(),
+            "cd": CD(),
+            "bluetooth": Bluetooth()
+        }
+        self.current = self.players["radio"]
+ 
+    def set_player(self, name):
+        self.current = self.players[name]
+ 
+    def press_play(self):
+        self.current.play()
+ 
+ 
+boombox = Boombox()
+ 
+boombox.set_player("cd")
+boombox.press_play()
+# Playing music from the CD...
+ 
+boombox.set_player("radio")
+boombox.press_play()
+# Playing music from the radio...
+ 
+boombox.set_player("bluetooth")
+boombox.press_play()
+# Playing music via Bluetooth...
+ 
