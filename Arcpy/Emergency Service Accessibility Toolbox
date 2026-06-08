@@ -1,0 +1,115 @@
+# -*- coding: utf-8 -*-
+
+import arcpy
+
+
+class Toolbox(object):
+    def __init__(self):
+        self.label = "Emergency Service Accessibility Toolbox"
+        self.alias = "emergency_access"
+        self.tools = [EmergencyServiceAccessibilityTool]
+
+
+class EmergencyServiceAccessibilityTool(object):
+    def __init__(self):
+        self.label = "Emergency Service Accessibility Tool"
+        self.description = "Creates covered and underserved areas based on distance from service locations."
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        param0 = arcpy.Parameter(
+            displayName="Service Point Layer",
+            name="service_points",
+            datatype="GPFeatureLayer",
+            parameterType="Required",
+            direction="Input"
+        )
+        param0.filter.list = ["Point"]
+
+        param1 = arcpy.Parameter(
+            displayName="Study Area Polygon Layer",
+            name="study_area",
+            datatype="GPFeatureLayer",
+            parameterType="Required",
+            direction="Input"
+        )
+        param1.filter.list = ["Polygon"]
+
+        param2 = arcpy.Parameter(
+            displayName="Buffer Distance",
+            name="buffer_distance",
+            datatype="GPLinearUnit",
+            parameterType="Required",
+            direction="Input"
+        )
+
+        param3 = arcpy.Parameter(
+            displayName="Covered Area Output",
+            name="covered_output",
+            datatype="DEFeatureClass",
+            parameterType="Required",
+            direction="Output"
+        )
+
+        param4 = arcpy.Parameter(
+            displayName="Underserved Area Output",
+            name="underserved_output",
+            datatype="DEFeatureClass",
+            parameterType="Required",
+            direction="Output"
+        )
+
+        return [param0, param1, param2, param3, param4]
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        return
+
+    def updateMessages(self, parameters):
+        return
+
+    def execute(self, parameters, messages):
+        service_points = parameters[0].valueAsText
+        study_area = parameters[1].valueAsText
+        buffer_distance = parameters[2].valueAsText
+        covered_output = parameters[3].valueAsText
+        underserved_output = parameters[4].valueAsText
+
+        arcpy.env.overwriteOutput = True
+        scratch_gdb = arcpy.env.scratchGDB
+
+        temp_buffer = scratch_gdb + "\\temp_buffer"
+        temp_dissolve = scratch_gdb + "\\temp_dissolve"
+
+        arcpy.AddMessage("Starting tool...")
+
+        arcpy.AddMessage("Step 1: Creating buffer...")
+        arcpy.analysis.Buffer(
+            in_features=service_points,
+            out_feature_class=temp_buffer,
+            buffer_distance_or_field=buffer_distance
+        )
+
+        arcpy.AddMessage("Step 2: Dissolving buffer...")
+        arcpy.management.Dissolve(
+            in_features=temp_buffer,
+            out_feature_class=temp_dissolve
+        )
+
+        arcpy.AddMessage("Step 3: Creating covered area...")
+        arcpy.analysis.Clip(
+            in_features=study_area,
+            clip_features=temp_dissolve,
+            out_feature_class=covered_output
+        )
+
+        arcpy.AddMessage("Step 4: Creating underserved area...")
+        arcpy.analysis.Erase(
+            in_features=study_area,
+            erase_features=temp_dissolve,
+            out_feature_class=underserved_output
+        )
+
+        arcpy.AddMessage("Tool finished successfully.")
